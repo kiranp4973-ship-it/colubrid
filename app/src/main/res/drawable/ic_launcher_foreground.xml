@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Subtle soft shadow / glow -->
+    <path
+        android:fillColor="#33000000"
+        android:pathData="M27,62 C27,55 33,50 40,50 C41,45 46,41 52,41 C57,41 62,45 63,50 C69,50 75,55 75,62 C75,69 69,74 63,74 L39,74 C32,74 27,69 27,62 Z" />
+
+    <!-- Left Cloud (Google Drive / Source) -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M31,52 C31,46.5 35.5,42 41,42 C42.2,42 43.4,42.2 44.5,42.7 C46.2,38.6 50.3,36 55,36 C60.8,36 65.6,39.9 67,45.2 C68.3,44.5 69.8,44 71.5,44 C76.7,44 81,48.3 81,53.5 C81,58.7 76.7,63 71.5,63 L39,63 C34.6,63 31,59.4 31,55 Z" />
+
+    <!-- Connecting Bridge Bar -->
+    <path
+        android:fillColor="#38BDF8"
+        android:pathData="M34,67 L74,67 L74,72 L34,72 Z" />
+
+    <!-- Transfer Dynamic Arrow -->
+    <path
+        android:fillColor="#2563EB"
+        android:pathData="M44,48 L56,48 L56,44 L66,51 L56,58 L56,54 L44,54 Z" />
+
+    <!-- Security Lock Accent on Bridge -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M52,64 C50.9,64 50,64.9 50,66 L50,68 C49.4,68 49,68.4 49,69 L49,74 C49,74.6 49.4,75 50,75 L58,75 C58.6,75 59,74.6 59,74 L59,69 C59,68.4 58.6,68 58,68 L58,66 C58,64.9 57.1,64 56,64 L52,64 Z M52,66 L56,66 L56,68 L52,68 L52,66 Z" />
+</vector>

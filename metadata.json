@@ -1,0 +1,6 @@
+{
+  "name": "CloudBridge",
+  "description": "Secure cloud-to-cloud file transfer platform between Google Drive and JioCloud with provider-adapter architecture, transfer engine, and real-time tracking.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
