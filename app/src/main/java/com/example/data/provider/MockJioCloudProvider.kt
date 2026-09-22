@@ -24,7 +24,11 @@ class MockJioCloudProvider : CloudProvider {
     private var isConnected = true
 
     init {
-        // Pre-populate with a destination folder to test duplicate detection if desired
+        seedJioFiles()
+    }
+
+    private fun seedJioFiles() {
+        destinationFiles.clear()
         val rootTransferFolder = CloudFile(
             id = "jio_root_transfers",
             name = "CloudBridge Transfers",
@@ -32,9 +36,95 @@ class MockJioCloudProvider : CloudProvider {
             size = 0L,
             isFolder = true,
             parentId = null,
-            fileType = CloudFileType.FOLDER
+            fileType = CloudFileType.FOLDER,
+            childCount = 0
         )
-        destinationFiles[rootTransferFolder.id] = rootTransferFolder
+        val docsFolder = CloudFile(
+            id = "jio_f_docs",
+            name = "Jio Documents",
+            mimeType = "application/vnd.google-apps.folder",
+            size = 0L,
+            isFolder = true,
+            parentId = null,
+            fileType = CloudFileType.FOLDER,
+            childCount = 2
+        )
+        val mediaFolder = CloudFile(
+            id = "jio_f_media",
+            name = "Media Vault",
+            mimeType = "application/vnd.google-apps.folder",
+            size = 0L,
+            isFolder = true,
+            parentId = null,
+            fileType = CloudFileType.FOLDER,
+            childCount = 2
+        )
+        val rootFile1 = CloudFile(
+            id = "jio_f_tax",
+            name = "Annual_Tax_Statement_2026.pdf",
+            mimeType = "application/pdf",
+            size = 2_150_000L,
+            isFolder = false,
+            parentId = null,
+            fileType = CloudFileType.PDF,
+            checksum = "a1b2c3d4e5f67890123456789abcdef0"
+        )
+        val rootFile2 = CloudFile(
+            id = "jio_f_welcome",
+            name = "JioCloud_Getting_Started.pdf",
+            mimeType = "application/pdf",
+            size = 1_180_000L,
+            isFolder = false,
+            parentId = null,
+            fileType = CloudFileType.PDF,
+            checksum = "b2c3d4e5f67890123456789abcdef01a"
+        )
+
+        val doc1 = CloudFile(
+            id = "jio_doc_1",
+            name = "Consulting_Agreement.docx",
+            mimeType = "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            size = 1_420_000L,
+            isFolder = false,
+            parentId = "jio_f_docs",
+            fileType = CloudFileType.DOCUMENT,
+            checksum = "c3d4e5f67890123456789abcdef01a2b"
+        )
+        val doc2 = CloudFile(
+            id = "jio_doc_2",
+            name = "Project_Budget_2026.xlsx",
+            mimeType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            size = 3_280_000L,
+            isFolder = false,
+            parentId = "jio_f_docs",
+            fileType = CloudFileType.DOCUMENT,
+            checksum = "d4e5f67890123456789abcdef01a2b3c"
+        )
+
+        val media1 = CloudFile(
+            id = "jio_med_1",
+            name = "Himalayan_Summit.jpg",
+            mimeType = "image/jpeg",
+            size = 4_820_000L,
+            isFolder = false,
+            parentId = "jio_f_media",
+            fileType = CloudFileType.IMAGE,
+            checksum = "e5f67890123456789abcdef01a2b3c4d"
+        )
+        val media2 = CloudFile(
+            id = "jio_med_2",
+            name = "Keynote_Presentation.mp4",
+            mimeType = "video/mp4",
+            size = 112_000_000L,
+            isFolder = false,
+            parentId = "jio_f_media",
+            fileType = CloudFileType.VIDEO,
+            checksum = "f67890123456789abcdef01a2b3c4d5e"
+        )
+
+        listOf(rootTransferFolder, docsFolder, mediaFolder, rootFile1, rootFile2, doc1, doc2, media1, media2).forEach {
+            destinationFiles[it.id] = it
+        }
     }
 
     override suspend fun connect(authParams: Map<String, String>): ProviderResult<ProviderAccount> {
@@ -72,10 +162,13 @@ class MockJioCloudProvider : CloudProvider {
 
     override suspend fun listFiles(folderId: String?, query: String?, pageToken: String?): ProviderResult<FileListResult> {
         val currentFolder = if (folderId != null) destinationFiles[folderId] else null
-        val items = destinationFiles.values.filter { it.parentId == folderId }
+        var items = destinationFiles.values.filter { it.parentId == folderId }
+        if (!query.isNullOrBlank()) {
+            items = destinationFiles.values.filter { it.name.contains(query, ignoreCase = true) }
+        }
         return ProviderResult.Success(
             FileListResult(
-                files = items.sortedByDescending { it.isFolder },
+                files = items.sortedWith(compareByDescending<CloudFile> { it.isFolder }.thenBy { it.name.lowercase() }),
                 nextPageToken = null,
                 currentFolder = currentFolder
             )
@@ -92,7 +185,11 @@ class MockJioCloudProvider : CloudProvider {
         fileId: String,
         onChunk: suspend (chunk: ByteArray, bytesRead: Long, totalBytes: Long) -> Unit
     ): ProviderResult<ByteArray> {
-        return ProviderResult.Error("Download stream not enabled for simulated destination", "MOCK_MODE")
+        val file = destinationFiles[fileId]
+            ?: return ProviderResult.Error("File not found on simulated JioCloud: $fileId", "404")
+        val simulatedData = ByteArray(minOf(file.size.toInt(), 1024 * 64)) { (it % 256).toByte() }
+        onChunk(simulatedData, file.size, file.size)
+        return ProviderResult.Success(simulatedData)
     }
 
     override suspend fun createFolder(name: String, parentFolderId: String?): ProviderResult<CloudFile> {

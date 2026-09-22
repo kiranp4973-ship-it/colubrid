@@ -218,6 +218,14 @@ class CloudBridgeRepository(private val db: CloudBridgeDatabase) {
         return googleDriveProvider.listFiles(folderId, query)
     }
 
+    suspend fun listProviderFiles(providerType: ProviderType, folderId: String? = null, query: String? = null): ProviderResult<FileListResult> {
+        return when (providerType) {
+            ProviderType.GOOGLE_DRIVE -> googleDriveProvider.listFiles(folderId, query)
+            ProviderType.JIO_CLOUD -> getDestinationProvider().listFiles(folderId, query)
+            else -> ProviderResult.Error("Unsupported provider: ${providerType.displayName}")
+        }
+    }
+
     // Transfer Creation
     suspend fun createAndStartTransferJob(
         selectedFiles: List<CloudFile>,

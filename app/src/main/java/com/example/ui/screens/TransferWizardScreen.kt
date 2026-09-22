@@ -77,6 +77,7 @@ import com.example.data.model.CloudFile
 import com.example.data.model.ConflictStrategy
 import com.example.ui.CloudBridgeViewModel
 import com.example.ui.Screen
+import com.example.ui.components.FileNavigationComponent
 import com.example.ui.components.FileTypeIcon
 import com.example.ui.components.formatBytes
 import com.example.ui.components.formatTimestamp
@@ -91,11 +92,7 @@ fun TransferWizardScreen(
     modifier: Modifier = Modifier
 ) {
     var step by remember { mutableIntStateOf(1) } // 1: Browse & Select, 2: Review & Configure
-    val files by viewModel.driveFiles.collectAsState()
     val selectedFiles by viewModel.selectedFiles.collectAsState()
-    val breadcrumbs by viewModel.breadcrumbs.collectAsState()
-    val isGridView by viewModel.isGridView.collectAsState()
-    val searchQuery by viewModel.searchQuery.collectAsState()
     val isDevMode by viewModel.isDevMode.collectAsState()
 
     var destinationFolder by remember { mutableStateOf("/CloudBridge Transfers/") }
@@ -130,12 +127,12 @@ fun TransferWizardScreen(
                         Spacer(modifier = Modifier.width(4.dp))
                         Column {
                             Text(
-                                text = if (step == 1) "Browse Google Drive" else "Review Transfer",
+                                text = if (step == 1) "File Navigator" else "Review Transfer",
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold
                             )
                             Text(
-                                text = if (step == 1) "Step 1 of 2: Select files & folders" else "Step 2 of 2: Destination & Conflict Handling",
+                                text = if (step == 1) "Step 1 of 2: Select files from Google Drive or JioCloud" else "Step 2 of 2: Destination & Conflict Handling",
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -159,233 +156,13 @@ fun TransferWizardScreen(
         }
 
         if (step == 1) {
-            // STEP 1: Google Drive Browser
-            Column(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
-                Spacer(modifier = Modifier.height(12.dp))
-
-                // Search Bar + View Toggle
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    OutlinedTextField(
-                        value = searchQuery,
-                        onValueChange = { viewModel.setSearchQuery(it) },
-                        placeholder = { Text("Search files & folders...") },
-                        leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
-                        trailingIcon = {
-                            if (searchQuery.isNotEmpty()) {
-                                IconButton(onClick = { viewModel.setSearchQuery("") }) {
-                                    Icon(Icons.Default.Clear, contentDescription = "Clear")
-                                }
-                            }
-                        },
-                        singleLine = true,
-                        modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(10.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    IconButton(
-                        onClick = { viewModel.toggleGridView() },
-                        modifier = Modifier
-                            .size(46.dp)
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(MaterialTheme.colorScheme.surface)
-                    ) {
-                        Icon(
-                            imageVector = if (isGridView) Icons.AutoMirrored.Filled.List else Icons.Default.GridView,
-                            contentDescription = "Toggle view",
-                            tint = CloudBridgePrimary
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                // Breadcrumbs Row
-                LazyRow(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    items(breadcrumbs) { crumb ->
-                        val isLast = breadcrumbs.lastOrNull()?.id == crumb.id
-                        Text(
-                            text = crumb.name,
-                            style = MaterialTheme.typography.bodySmall,
-                            fontWeight = if (isLast) FontWeight.Bold else FontWeight.Medium,
-                            color = if (isLast) CloudBridgePrimary else MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(4.dp))
-                                .clickable { viewModel.navigateBreadcrumb(crumb) }
-                                .padding(horizontal = 6.dp, vertical = 4.dp)
-                        )
-                        if (!isLast) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(14.dp)
-                            )
-                        }
-                    }
-                }
-
-                // Selection Actions Bar
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = if (selectedFiles.isEmpty()) "No items selected" else "${selectedFiles.size} selected (${formatBytes(totalSelectedBytes)})",
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.SemiBold,
-                        color = if (selectedFiles.isNotEmpty()) CloudBridgePrimary else MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Row {
-                        TextButton(onClick = { viewModel.selectAllFiles() }) {
-                            Text("Select All", style = MaterialTheme.typography.labelSmall)
-                        }
-                        if (selectedFiles.isNotEmpty()) {
-                            TextButton(onClick = { viewModel.clearFileSelection() }) {
-                                Text("Clear", style = MaterialTheme.typography.labelSmall)
-                            }
-                        }
-                    }
-                }
-
-                // File List or Grid
-                if (files.isEmpty()) {
-                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Icon(Icons.Default.Folder, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(48.dp))
-                            Spacer(modifier = Modifier.height(10.dp))
-                            Text(text = "No files found in this folder", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                    }
-                } else if (isGridView) {
-                    LazyVerticalGrid(
-                        columns = GridCells.Adaptive(110.dp),
-                        modifier = Modifier.fillMaxSize(),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        contentPadding = PaddingValues(bottom = 20.dp)
-                    ) {
-                        items(files) { file ->
-                            val isSelected = selectedFiles.any { it.id == file.id }
-                            Card(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .clickable {
-                                        if (file.isFolder) {
-                                            viewModel.navigateIntoFolder(file)
-                                        } else {
-                                            viewModel.toggleFileSelection(file)
-                                        }
-                                    },
-                                colors = CardDefaults.cardColors(
-                                    containerColor = if (isSelected) CloudBridgePrimary.copy(alpha = 0.08f) else MaterialTheme.colorScheme.surface
-                                ),
-                                border = CardDefaults.outlinedCardBorder()
-                            ) {
-                                Column(
-                                    modifier = Modifier.padding(10.dp),
-                                    horizontalAlignment = Alignment.CenterHorizontally
-                                ) {
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.End
-                                    ) {
-                                        Checkbox(
-                                            checked = isSelected,
-                                            onCheckedChange = { viewModel.toggleFileSelection(file) },
-                                            modifier = Modifier.size(20.dp),
-                                            colors = CheckboxDefaults.colors(checkedColor = CloudBridgePrimary)
-                                        )
-                                    }
-                                    Spacer(modifier = Modifier.height(4.dp))
-                                    FileTypeIcon(type = file.fileType, size = 32)
-                                    Spacer(modifier = Modifier.height(6.dp))
-                                    Text(
-                                        text = file.name,
-                                        style = MaterialTheme.typography.bodySmall,
-                                        fontWeight = FontWeight.Medium,
-                                        maxLines = 2,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-                                    Text(
-                                        text = if (file.isFolder) "${file.childCount} items" else formatBytes(file.size),
-                                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                            }
-                        }
-                    }
-                } else {
-                    LazyColumn(
-                        modifier = Modifier.fillMaxSize(),
-                        verticalArrangement = Arrangement.spacedBy(6.dp),
-                        contentPadding = PaddingValues(bottom = 20.dp)
-                    ) {
-                        items(files) { file ->
-                            val isSelected = selectedFiles.any { it.id == file.id }
-                            Card(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable {
-                                        if (file.isFolder) {
-                                            viewModel.navigateIntoFolder(file)
-                                        } else {
-                                            viewModel.toggleFileSelection(file)
-                                        }
-                                    },
-                                colors = CardDefaults.cardColors(
-                                    containerColor = if (isSelected) CloudBridgePrimary.copy(alpha = 0.08f) else MaterialTheme.colorScheme.surface
-                                ),
-                                border = CardDefaults.outlinedCardBorder()
-                            ) {
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(horizontal = 12.dp, vertical = 10.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Checkbox(
-                                        checked = isSelected,
-                                        onCheckedChange = { viewModel.toggleFileSelection(file) },
-                                        colors = CheckboxDefaults.colors(checkedColor = CloudBridgePrimary)
-                                    )
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    FileTypeIcon(type = file.fileType, size = 26)
-                                    Spacer(modifier = Modifier.width(12.dp))
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Text(
-                                            text = file.name,
-                                            style = MaterialTheme.typography.bodyMedium,
-                                            fontWeight = FontWeight.SemiBold,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis
-                                        )
-                                        Text(
-                                            text = if (file.isFolder) "Folder • ${file.childCount} nested items" else "${formatBytes(file.size)} • ${formatTimestamp(file.modifiedTime)}",
-                                            style = MaterialTheme.typography.labelSmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                    }
-                                    if (file.isFolder) {
-                                        Icon(
-                                            imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                                            contentDescription = "Open folder",
-                                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
+            // STEP 1: Multi-Account Cloud File Browser (Google Drive & JioCloud)
+            FileNavigationComponent(
+                viewModel = viewModel,
+                primaryActionLabel = "Review Transfer (${selectedFiles.size})",
+                onPrimaryAction = { step = 2 },
+                modifier = Modifier.fillMaxSize()
+            )
         } else {
             // STEP 2: Transfer Review Screen (Section 13)
             LazyColumn(

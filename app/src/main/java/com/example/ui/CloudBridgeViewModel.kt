@@ -11,7 +11,9 @@ import com.example.data.local.TransferJobEntity
 import com.example.data.local.UserEntity
 import com.example.data.local.UserSettingsEntity
 import com.example.data.model.CloudFile
+import com.example.data.model.CloudFileType
 import com.example.data.model.ConflictStrategy
+import com.example.data.model.ProviderType
 import com.example.data.model.UserRole
 import com.example.data.provider.ProviderResult
 import com.example.data.repository.CloudBridgeRepository
@@ -111,15 +113,27 @@ class CloudBridgeViewModel(private val repository: CloudBridgeRepository) : View
         showToast("Connection audit logs cleared")
     }
 
-    // Drive Browser State
+    // Multi-Account File Browser State
+    private val _selectedBrowserProvider = MutableStateFlow(ProviderType.GOOGLE_DRIVE)
+    val selectedBrowserProvider: StateFlow<ProviderType> = _selectedBrowserProvider.asStateFlow()
+
     private val _currentFolderId = MutableStateFlow<String?>(null)
     val currentFolderId: StateFlow<String?> = _currentFolderId.asStateFlow()
 
-    private val _breadcrumbs = MutableStateFlow<List<Breadcrumb>>(listOf(Breadcrumb(null, "My Drive")))
+    private val _breadcrumbs = MutableStateFlow<List<Breadcrumb>>(listOf(Breadcrumb(null, "Google Drive")))
     val breadcrumbs: StateFlow<List<Breadcrumb>> = _breadcrumbs.asStateFlow()
 
     private val _driveFiles = MutableStateFlow<List<CloudFile>>(emptyList())
     val driveFiles: StateFlow<List<CloudFile>> = _driveFiles.asStateFlow()
+
+    private val _browserFiles = MutableStateFlow<List<CloudFile>>(emptyList())
+    val browserFiles: StateFlow<List<CloudFile>> = _browserFiles.asStateFlow()
+
+    private val _browserError = MutableStateFlow<String?>(null)
+    val browserError: StateFlow<String?> = _browserError.asStateFlow()
+
+    private val _selectedCategory = MutableStateFlow<CloudFileType?>(null)
+    val selectedCategory: StateFlow<CloudFileType?> = _selectedCategory.asStateFlow()
 
     private val _searchQuery = MutableStateFlow("")
     val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
@@ -157,7 +171,7 @@ class CloudBridgeViewModel(private val repository: CloudBridgeRepository) : View
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     init {
-        loadDriveFiles()
+        loadBrowserFiles()
     }
 
     fun navigateTo(screen: Screen) {
@@ -177,13 +191,35 @@ class CloudBridgeViewModel(private val repository: CloudBridgeRepository) : View
         _toastMessage.value = msg
     }
 
+    fun selectBrowserProvider(provider: ProviderType) {
+        if (_selectedBrowserProvider.value == provider) return
+        _selectedBrowserProvider.value = provider
+        _currentFolderId.value = null
+        _searchQuery.value = ""
+        _selectedCategory.value = null
+        _breadcrumbs.value = listOf(Breadcrumb(null, provider.displayName))
+        loadBrowserFiles(provider = provider, folderId = null, query = "")
+    }
+
+    fun toggleCategoryFilter(type: CloudFileType?) {
+        _selectedCategory.value = if (_selectedCategory.value == type) null else type
+    }
+
     fun toggleGridView() {
         _isGridView.value = !_isGridView.value
     }
 
     fun setSearchQuery(query: String) {
         _searchQuery.value = query
-        loadDriveFiles(query = query)
+        loadBrowserFiles(query = query)
+    }
+
+    fun navigateUp() {
+        val crumbs = _breadcrumbs.value
+        if (crumbs.size > 1) {
+            val parentCrumb = crumbs[crumbs.size - 2]
+            navigateBreadcrumb(parentCrumb)
+        }
     }
 
     fun navigateIntoFolder(folder: CloudFile) {
@@ -192,7 +228,7 @@ class CloudBridgeViewModel(private val repository: CloudBridgeRepository) : View
         val updatedCrumbs = _breadcrumbs.value.toMutableList()
         updatedCrumbs.add(Breadcrumb(folder.id, folder.name))
         _breadcrumbs.value = updatedCrumbs
-        loadDriveFiles(folderId = folder.id)
+        loadBrowserFiles(folderId = folder.id)
     }
 
     fun navigateBreadcrumb(target: Breadcrumb) {
@@ -201,23 +237,41 @@ class CloudBridgeViewModel(private val repository: CloudBridgeRepository) : View
         if (index != -1) {
             _breadcrumbs.value = currentList.subList(0, index + 1)
             _currentFolderId.value = target.id
-            loadDriveFiles(folderId = target.id)
+            loadBrowserFiles(folderId = target.id)
         }
     }
 
-    fun loadDriveFiles(folderId: String? = _currentFolderId.value, query: String? = _searchQuery.value) {
+    fun loadBrowserFiles(
+        provider: ProviderType = _selectedBrowserProvider.value,
+        folderId: String? = _currentFolderId.value,
+        query: String? = _searchQuery.value
+    ) {
         viewModelScope.launch {
             _isLoadingDrive.value = true
-            when (val res = repository.listDriveFiles(folderId, query)) {
+            _browserError.value = null
+            when (val res = repository.listProviderFiles(provider, folderId, query)) {
                 is ProviderResult.Success -> {
-                    _driveFiles.value = res.data.files
+                    _browserFiles.value = res.data.files
+                    if (provider == ProviderType.GOOGLE_DRIVE) {
+                        _driveFiles.value = res.data.files
+                    }
                 }
                 is ProviderResult.Error -> {
+                    _browserFiles.value = emptyList()
+                    _browserError.value = res.message
                     showToast(res.message)
                 }
             }
             _isLoadingDrive.value = false
         }
+    }
+
+    fun loadDriveFiles(folderId: String? = _currentFolderId.value, query: String? = _searchQuery.value) {
+        loadBrowserFiles(ProviderType.GOOGLE_DRIVE, folderId, query)
+    }
+
+    fun refreshBrowser() {
+        loadBrowserFiles()
     }
 
     fun toggleFileSelection(file: CloudFile) {
@@ -231,7 +285,14 @@ class CloudBridgeViewModel(private val repository: CloudBridgeRepository) : View
     }
 
     fun selectAllFiles() {
-        _selectedFiles.value = _driveFiles.value.toSet()
+        val currentList = _browserFiles.value
+        val category = _selectedCategory.value
+        val itemsToSelect = if (category != null) {
+            currentList.filter { it.fileType == category }
+        } else {
+            currentList
+        }
+        _selectedFiles.value = _selectedFiles.value + itemsToSelect
     }
 
     fun clearFileSelection() {
